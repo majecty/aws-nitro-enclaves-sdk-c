@@ -211,28 +211,39 @@ static int decrypt(struct app_ctx *app_ctx, struct aws_byte_buf *ciphertext_decr
         aws_byte_cursor_from_c_str((const char *)app_ctx->aws_session_token->bytes),
         UINT64_MAX);
 
+    print_with_time("after new credentials");
+
     /* If credentials or client already exists, replace them. */
     if (credentials != NULL) {
         aws_nitro_enclaves_kms_client_destroy(client);
         aws_credentials_release(credentials);
     }
+    print_with_time("after credential release");
 
     credentials = new_credentials;
     configuration.credentials = new_credentials;
+    print_with_time("before kms client new");
     client = aws_nitro_enclaves_kms_client_new(&configuration);
+    print_with_time("after kms client new");
 
     /* Decrypt uses KMS to decrypt the ciphertext */
     /* Get decode base64 string into bytes. */
     size_t ciphertext_len;
     struct aws_byte_buf ciphertext;
     struct aws_byte_cursor ciphertext_b64 = aws_byte_cursor_from_c_str((const char *)app_ctx->ciphertext_b64->bytes);
+    print_with_time("after aws_byte_cursor_from_c_str");
 
     rc = aws_base64_compute_decoded_len(&ciphertext_b64, &ciphertext_len);
     fail_on(rc != AWS_OP_SUCCESS, "Ciphertext not a base64 string");
+    print_with_time("after aws_base64_compute_decoded_len");
+
     rc = aws_byte_buf_init(&ciphertext, app_ctx->allocator, ciphertext_len);
     fail_on(rc != AWS_OP_SUCCESS, "Memory allocation error");
+    print_with_time("after aws_byte_buf_init");
+
     rc = aws_base64_decode(&ciphertext_b64, &ciphertext);
     fail_on(rc != AWS_OP_SUCCESS, "Ciphertext not a base64 string");
+    print_with_time("after aws_base64_decode");
 
     print_with_time("before kms decrypt blocking");
     /* Decrypt the data with KMS. */
