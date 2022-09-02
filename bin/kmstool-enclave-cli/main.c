@@ -9,6 +9,7 @@
 
 #include <linux/vm_sockets.h>
 #include <sys/socket.h>
+#include <time.h>
 
 #include <errno.h>
 #include <unistd.h>
@@ -29,6 +30,15 @@ enum status {
         }                                                                                                              \
         return AWS_OP_ERR;                                                                                             \
     }
+
+static void print_with_time(char *str) {
+    time_t rawtime;
+    struct tm *timeinfo;
+
+    time(&rawtime);
+    timeinfo = localtime(&rawtime);
+    fprintf(stderr, "message %s: %s", str, asctime(timeinfo));
+}
 
 struct app_ctx {
     /* Allocator to use for memory allocations. */
@@ -184,6 +194,7 @@ static int decrypt(struct app_ctx *app_ctx, struct aws_byte_buf *ciphertext_decr
     struct aws_nitro_enclaves_kms_client_configuration configuration = {
         .allocator = app_ctx->allocator, .endpoint = &endpoint, .domain = AWS_SOCKET_VSOCK, .region = app_ctx->region};
 
+    print_with_time("before new credentials");
     /* Sets the AWS credentials and creates a KMS client with them. */
     struct aws_credentials *new_credentials = aws_credentials_new(
         app_ctx->allocator,
@@ -215,6 +226,7 @@ static int decrypt(struct app_ctx *app_ctx, struct aws_byte_buf *ciphertext_decr
     rc = aws_base64_decode(&ciphertext_b64, &ciphertext);
     fail_on(rc != AWS_OP_SUCCESS, "Ciphertext not a base64 string");
 
+    print_with_time("before kms decrypt blocking");
     /* Decrypt the data with KMS. */
     struct aws_byte_buf ciphertext_decrypted;
     rc = aws_kms_decrypt_blocking(
@@ -243,12 +255,15 @@ int main(int argc, char **argv) {
     struct aws_byte_buf ciphertext_decrypted_b64;
     int rc;
 
+    print_with_time("before library init");
     /* Initialize the SDK */
     aws_nitro_enclaves_library_init(NULL);
 
+    print_with_time("before seed entrophy");
     /* Initialize the entropy pool: this is relevant for TLS */
     AWS_ASSERT(aws_nitro_enclaves_library_seed_entropy(1024) == AWS_OP_SUCCESS);
 
+    print_with_time("before allocator");
     /* Parse the commandline */
     app_ctx.allocator = aws_nitro_enclaves_get_allocator();
     s_parse_options(argc, argv, &app_ctx);
@@ -263,6 +278,7 @@ int main(int argc, char **argv) {
     aws_logger_init_standard(&err_logger, app_ctx.allocator, &options);
     aws_logger_set(&err_logger);
 
+    print_with_time("before decrypt");
     rc = decrypt(&app_ctx, &ciphertext_decrypted_b64);
 
     if (rc != AWS_OP_SUCCESS) {

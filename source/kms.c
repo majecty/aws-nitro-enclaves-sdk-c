@@ -10,6 +10,8 @@
 #include <aws/nitro_enclaves/nitro_enclaves.h>
 #include <json-c/json.h>
 
+#include <time.h>
+
 /**
  * AWS KMS Request / Response JSON key values.
  */
@@ -33,6 +35,15 @@
  * Returns true if the strings are equal, false otherwise.
  */
 #define AWS_SAFE_COMPARE(C_STR, STR_LIT) aws_array_eq((C_STR), strlen((C_STR)), (STR_LIT), sizeof((STR_LIT)) - 1)
+
+static void print_with_time(char *str) {
+    time_t rawtime;
+    struct tm *timeinfo;
+
+    time(&rawtime);
+    timeinfo = localtime(&rawtime);
+    fprintf(stderr, "message %s: %s", str, asctime(timeinfo));
+}
 
 /**
  * Aws string values for the AWS Encryption Algorithm used by KMS.
@@ -2647,6 +2658,7 @@ int aws_kms_decrypt_blocking(
         }
     }
 
+    print_with_time("before attestations");
     request_structure->recipient = aws_recipient_new(client->allocator);
     if (request_structure->recipient == NULL) {
         goto err_clean;
@@ -2663,6 +2675,7 @@ int aws_kms_decrypt_blocking(
         goto err_clean;
     }
 
+    print_with_time("before aws_nitro_enclaves_kms_client_call");
     rc = s_aws_nitro_enclaves_kms_client_call_blocking(client, kms_target_decrypt, request, &response);
     if (rc != 200) {
         fprintf(stderr, "Got non-200 answer from KMS: %d\n", rc);
@@ -2675,6 +2688,7 @@ int aws_kms_decrypt_blocking(
         goto err_clean;
     }
 
+    print_with_time("before s_decrypt_ciphertext_for_recipient");
     rc = s_decrypt_ciphertext_for_recipient(
         client->allocator, &response_structure->ciphertext_for_recipient, client->keypair, plaintext);
 
