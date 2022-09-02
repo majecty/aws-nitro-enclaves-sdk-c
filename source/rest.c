@@ -17,6 +17,11 @@
 #include <aws/io/stream.h>
 #include <aws/io/tls_channel_handler.h>
 
+#include <stdint.h>
+#include <string.h>
+#include <sys/time.h>
+#include <time.h>
+
 #include <inttypes.h>
 
 #define ALPN_STRING "h2;http/1.1"
@@ -26,6 +31,19 @@
 #ifndef VERSION
 #    define VERSION "unknown"
 #endif
+
+static void print_with_time(char *str) {
+
+    struct timeval timev;
+    gettimeofday(&timev, NULL);
+    int64_t s2 = (timev.tv_usec / 1000);
+
+    char buff[100];
+    time_t now = time(0);
+    strftime(buff, 100, "%H:%M:%S", localtime(&now));
+
+    fprintf(stderr, "message %s: %s %ld\n", str, buff, s2);
+}
 
 static void s_on_client_connection_setup(struct aws_http_connection *connection, int error_code, void *user_data) {
     struct aws_nitro_enclaves_rest_client *rest_client = user_data;
@@ -60,6 +78,9 @@ static void s_on_client_connection_shutdown(struct aws_http_connection *connecti
 
 struct aws_nitro_enclaves_rest_client *aws_nitro_enclaves_rest_client_new(
     struct aws_nitro_enclaves_rest_client_configuration *configuration) {
+
+    print_with_time("start aws_nitro_enclaves_rest_client_new");
+
     AWS_PRECONDITION(aws_string_is_valid(configuration->service));
     AWS_PRECONDITION(aws_string_is_valid(configuration->region));
     AWS_PRECONDITION(configuration->credentials != NULL || configuration->credentials_provider != NULL);
@@ -104,6 +125,8 @@ struct aws_nitro_enclaves_rest_client *aws_nitro_enclaves_rest_client_new(
         goto err_clean;
     }
 
+    print_with_time("before aws_credentials_provider_acquire");
+
     if (configuration->credentials_provider != NULL) {
         aws_credentials_provider_acquire(configuration->credentials_provider);
     }
@@ -123,12 +146,14 @@ struct aws_nitro_enclaves_rest_client *aws_nitro_enclaves_rest_client_new(
     struct aws_tls_ctx_options tls_ctx_options;
     AWS_ZERO_STRUCT(tls_ctx_options);
 
+    print_with_time("before aws_tls_ctx_options_init_default_client");
     aws_tls_ctx_options_init_default_client(&tls_ctx_options, rest_client->allocator);
     if (aws_tls_ctx_options_set_alpn_list(&tls_ctx_options, ALPN_STRING) != AWS_OP_SUCCESS) {
         /* TODO: aws_raise */
         goto err_clean;
     }
 
+    print_with_time("before aws_tls_client_ctx_new");
     rest_client->tls_ctx = aws_tls_client_ctx_new(rest_client->allocator, &tls_ctx_options);
     if (rest_client->tls_ctx == NULL) {
         /* TODO: aws_raise */
@@ -143,6 +168,7 @@ struct aws_nitro_enclaves_rest_client *aws_nitro_enclaves_rest_client_new(
         goto err_clean;
     }
 
+    print_with_time("before aws_event_loop_group_new_default");
     /* TODO: Should the el_group be set by the caller instead? */
     el_group = aws_event_loop_group_new_default(rest_client->allocator, 0, NULL);
     if (el_group == NULL) {
@@ -155,6 +181,7 @@ struct aws_nitro_enclaves_rest_client *aws_nitro_enclaves_rest_client_new(
         .el_group = el_group,
         .max_entries = 8,
     };
+    print_with_time("before aws_host_resolver_new_default");
     host_resolver = aws_host_resolver_new_default(rest_client->allocator, &resolver_options);
     if (host_resolver == NULL) {
         /* TODO: aws_raise */
@@ -166,6 +193,7 @@ struct aws_nitro_enclaves_rest_client *aws_nitro_enclaves_rest_client_new(
         .host_resolver = host_resolver,
     };
 
+    print_with_time("before aws_client_bootstrap_new");
     bootstrap = aws_client_bootstrap_new(rest_client->allocator, &bootstrap_options);
     if (bootstrap == NULL) {
         /* TODO: aws_raise */
@@ -200,6 +228,7 @@ struct aws_nitro_enclaves_rest_client *aws_nitro_enclaves_rest_client_new(
         http_client_options.host_name = aws_byte_cursor_from_c_str(configuration->endpoint->address);
     }
 
+    print_with_time("before aws_http_client_connect");
     if (aws_http_client_connect(&http_client_options) != AWS_OP_SUCCESS) {
         /* TODO: aws_raise */
         goto err_clean;

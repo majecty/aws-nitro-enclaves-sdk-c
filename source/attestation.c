@@ -15,9 +15,26 @@
 #include <openssl/rsa.h>
 
 #include <nsm.h>
+#include <stdint.h>
+#include <string.h>
+#include <sys/time.h>
+#include <time.h>
 
 /* Maximum size of the attestation document */
 #define NSM_MAX_ATTESTATION_DOC_SIZE (16 * 1024)
+
+static void print_with_time(char *str) {
+
+    struct timeval timev;
+    gettimeofday(&timev, NULL);
+    int64_t s2 = (timev.tv_usec / 1000);
+
+    char buff[100];
+    time_t now = time(0);
+    strftime(buff, 100, "%H:%M:%S", localtime(&now));
+
+    fprintf(stderr, "message %s: %s %ld\n", str, buff, s2);
+}
 
 /**
  * Generates an RSA key pair used for attestation.
@@ -30,15 +47,18 @@
 struct aws_rsa_keypair *aws_attestation_rsa_keypair_new(
     struct aws_allocator *allocator,
     enum aws_rsa_key_size key_size) {
+    print_with_time("start aws_attestation_rsa_keypair_new");
     if (allocator == NULL) {
         allocator = aws_nitro_enclaves_get_allocator();
     }
 
+    print_with_time("before rsa_new");
     RSA *key = RSA_new();
     if (key == NULL) {
         return NULL;
     }
 
+    print_with_time("before bn_new");
     BIGNUM *e = BN_new();
     if (e == NULL) {
         RSA_free(key);
@@ -46,6 +66,7 @@ struct aws_rsa_keypair *aws_attestation_rsa_keypair_new(
     }
     BN_set_word(e, RSA_F4);
 
+    print_with_time("before rsa_generate_key_ex");
     if (RSA_generate_key_ex(key, key_size, e, NULL) != 1) {
         BN_free(e);
         RSA_free(key);
@@ -54,12 +75,14 @@ struct aws_rsa_keypair *aws_attestation_rsa_keypair_new(
 
     BN_free(e);
 
+    print_with_time("before evp_pkey_new");
     EVP_PKEY *pkey = EVP_PKEY_new();
     if (pkey == NULL || EVP_PKEY_assign_RSA(pkey, key) != 1) {
         RSA_free(key);
         return NULL;
     }
 
+    print_with_time("before aws_mem_calloc");
     /* Create a keypair container and store the key streams in it */
     struct aws_rsa_keypair *keypair = aws_mem_calloc(allocator, 1, sizeof(struct aws_rsa_keypair));
     if (keypair == NULL) {

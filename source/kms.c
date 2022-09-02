@@ -2497,10 +2497,13 @@ void aws_nitro_enclaves_kms_client_config_destroy(struct aws_nitro_enclaves_kms_
 
 struct aws_nitro_enclaves_kms_client *aws_nitro_enclaves_kms_client_new(
     struct aws_nitro_enclaves_kms_client_configuration *configuration) {
+
+    print_with_time("start aws_nitro_enclaves_kms_client_new");
     struct aws_allocator *allocator =
         configuration->allocator != NULL ? configuration->allocator : aws_nitro_enclaves_get_allocator();
     AWS_PRECONDITION(aws_allocator_is_valid(allocator));
 
+    print_with_time("before aws_mem_calloc");
     struct aws_nitro_enclaves_kms_client *client =
         aws_mem_calloc(allocator, 1, sizeof(struct aws_nitro_enclaves_kms_client));
     if (client == NULL) {
@@ -2523,12 +2526,14 @@ struct aws_nitro_enclaves_kms_client *aws_nitro_enclaves_kms_client_new(
         rest_configuration.domain = configuration->domain;
     }
 
+    print_with_time("before aws_nitro_enclaves_rest_client_new");
     client->rest_client = aws_nitro_enclaves_rest_client_new(&rest_configuration);
     if (client->rest_client == NULL) {
         aws_mem_release(allocator, client);
         return NULL;
     }
 
+    print_with_time("before aws_attestation_rsa_key_new");
     client->keypair = aws_attestation_rsa_keypair_new(allocator, AWS_RSA_2048);
     if (client->keypair == NULL) {
         aws_nitro_enclaves_rest_client_destroy(client->rest_client);
