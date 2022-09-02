@@ -11,6 +11,10 @@
 #include <sys/socket.h>
 #include <time.h>
 
+#include <stdint.h>
+#include <string.h>
+#include <sys/time.h>
+
 #include <errno.h>
 #include <unistd.h>
 
@@ -32,12 +36,16 @@ enum status {
     }
 
 static void print_with_time(char *str) {
-    time_t rawtime;
-    struct tm *timeinfo;
 
-    time(&rawtime);
-    timeinfo = localtime(&rawtime);
-    fprintf(stderr, "message %s: %s", str, asctime(timeinfo));
+    struct timeval timev;
+    gettimeofday(&timev, NULL);
+    int64_t s2 = (timev.tv_usec / 1000);
+
+    char buff[100];
+    time_t now = time(0);
+    strftime(buff, 100, "%H:%M:%S", localtime(&now));
+
+    fprintf(stderr, "message %s: %s %ld\n", str, buff, s2);
 }
 
 struct app_ctx {
